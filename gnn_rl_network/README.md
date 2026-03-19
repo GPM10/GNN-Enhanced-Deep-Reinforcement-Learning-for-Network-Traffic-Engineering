@@ -21,6 +21,7 @@ pip install -r requirements.txt
 - Run `train.py` to train the RL agent.
 - Run `evaluate.py` to compare routing methods.
 - Run `visualize.py` to plot the network.
+- Run `gnn_pretrain.py` to generate congestion-labelled graphs and pretrain the GNN encoder. The resulting weights are stored in `gnn_rl_network/artifacts/gnn_pretrained.pt` and are automatically loaded by `train.py`/`evaluate.py` when present.
 
 ## Files
 - `network_env.py`: Network simulator.
