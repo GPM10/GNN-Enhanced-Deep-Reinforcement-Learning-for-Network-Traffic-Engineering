@@ -7,7 +7,7 @@ from network_env import NetworkEnvironment
 from rl_agent import NetworkRoutingEnv, train_rl_agent
 from traffic_generator import TrafficGenerator
 from baseline_routing import BaselineRouting
-from gnn_model import GNNModel, GNNEmbedding
+from gnn_model import GNNModel, GNNEmbedding, SUPPORTED_GNN_MODELS
 
 
 ARTIFACT_DIR = Path(__file__).resolve().parent / "artifacts"
@@ -16,12 +16,17 @@ GNN_WEIGHTS = ARTIFACT_DIR / "gnn_pretrained.pt"
 PPO_WEIGHTS = ARTIFACT_DIR / "ppo_gnn.zip"
 
 
-def build_gnn_embedder(hidden_channels=64, embedding_dim=32, weights_path: Path = GNN_WEIGHTS):
+def build_gnn_embedder(
+    hidden_channels=64,
+    embedding_dim=32,
+    weights_path: Path = GNN_WEIGHTS,
+    model_type="gcn",
+):
     """
     Create a lightweight GNN embedder for the routing environment.
     """
     num_node_features = 3  # [x_norm, y_norm, avg_util]
-    gnn = GNNModel(num_node_features, hidden_channels, embedding_dim)
+    gnn = GNNModel(num_node_features, hidden_channels, embedding_dim, model_type=model_type)
     if weights_path and weights_path.exists():
         state = torch.load(weights_path, map_location="cpu")
         try:
@@ -40,6 +45,8 @@ def parse_args():
     parser.add_argument("--save-model", type=str, default=str(PPO_WEIGHTS), help="Path to save trained PPO policy.")
     parser.add_argument("--source", type=int, nargs=2, default=(0, 0), help="Source node coordinates.")
     parser.add_argument("--target", type=int, nargs=2, default=(3, 3), help="Target node coordinates.")
+    parser.add_argument("--gnn-model", choices=SUPPORTED_GNN_MODELS, default="gcn", help="GNN encoder architecture.")
+    parser.add_argument("--gnn-weights", type=str, default=str(GNN_WEIGHTS), help="Path to pretrained GNN encoder weights.")
     return parser.parse_args()
 
 
@@ -59,7 +66,7 @@ def main():
     # RL Training with GNN-enhanced observations
     source = tuple(args.source)
     target = tuple(args.target)
-    gnn_embedder = build_gnn_embedder()
+    gnn_embedder = build_gnn_embedder(weights_path=Path(args.gnn_weights), model_type=args.gnn_model)
     rl_env = NetworkRoutingEnv(env, source, target, gnn_embedder=gnn_embedder)
     model = train_rl_agent(rl_env, total_timesteps=args.timesteps)
 

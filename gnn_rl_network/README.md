@@ -22,6 +22,14 @@ pip install -r requirements.txt
 - Run `evaluate.py` to compare routing methods.
 - Run `visualize.py` to plot the network.
 - Run `gnn_pretrain.py` to generate congestion-labelled graphs and pretrain the GNN encoder. The resulting weights are stored in `gnn_rl_network/artifacts/gnn_pretrained.pt` and are automatically loaded by `train.py`/`evaluate.py` when present.
+- Select the encoder with `--gnn-model gcn`, `--gnn-model gat`, or `--gnn-model graphsage`. GCN remains the default.
+
+Examples:
+```bash
+python gnn_pretrain.py --gnn-model gat --output gnn_gat_pretrained.pt
+python train.py --gnn-model gat --gnn-weights artifacts/gnn_gat_pretrained.pt
+python evaluate.py --gnn-model graphsage
+```
 
 ## Files
 - `network_env.py`: Network simulator.

@@ -5,14 +5,19 @@ import torch
 from torch import nn, optim
 from torch_geometric.loader import DataLoader
 
-from gnn_model import GNNModel
+from gnn_model import GNNModel, SUPPORTED_GNN_MODELS
 from gnn_dataset import generate_congestion_samples
 
 
 class GNNCongestionRegressor(nn.Module):
-    def __init__(self, hidden_channels=64, embedding_dim=32):
+    def __init__(self, hidden_channels=64, embedding_dim=32, model_type="gcn"):
         super().__init__()
-        self.encoder = GNNModel(num_node_features=3, hidden_channels=hidden_channels, num_classes=embedding_dim)
+        self.encoder = GNNModel(
+            num_node_features=3,
+            hidden_channels=hidden_channels,
+            num_classes=embedding_dim,
+            model_type=model_type,
+        )
         self.head = nn.Sequential(
             nn.Linear(embedding_dim, embedding_dim),
             nn.ReLU(),
@@ -35,7 +40,7 @@ def train_gnn(args):
     loader = DataLoader(samples, batch_size=args.batch_size, shuffle=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() and not args.cpu else "cpu")
-    model = GNNCongestionRegressor(args.hidden, args.embedding).to(device)
+    model = GNNCongestionRegressor(args.hidden, args.embedding, args.gnn_model).to(device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
@@ -71,6 +76,7 @@ def build_arg_parser():
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate.")
     parser.add_argument("--hidden", type=int, default=64, help="Hidden channels inside the GNN.")
     parser.add_argument("--embedding", type=int, default=32, help="Output embedding dimension.")
+    parser.add_argument("--gnn-model", choices=SUPPORTED_GNN_MODELS, default="gcn", help="GNN encoder architecture.")
     parser.add_argument("--cpu", action="store_true", help="Force training on CPU even if CUDA is available.")
     parser.add_argument("--output", type=str, default="gnn_pretrained.pt", help="Filename for saved encoder weights.")
     return parser
@@ -84,4 +90,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

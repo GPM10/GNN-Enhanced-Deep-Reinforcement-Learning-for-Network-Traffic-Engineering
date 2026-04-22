@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import torch
@@ -5,7 +6,7 @@ from network_env import NetworkEnvironment
 from traffic_generator import TrafficGenerator
 from baseline_routing import BaselineRouting
 from rl_agent import NetworkRoutingEnv, train_rl_agent
-from gnn_model import GNNModel, GNNEmbedding
+from gnn_model import GNNModel, GNNEmbedding, SUPPORTED_GNN_MODELS
 from stable_baselines3 import PPO
 import matplotlib
 
@@ -18,9 +19,14 @@ GNN_WEIGHTS = ARTIFACT_DIR / "gnn_pretrained.pt"
 PPO_WEIGHTS = ARTIFACT_DIR / "ppo_gnn.zip"
 
 
-def build_gnn_embedder(hidden_channels=64, embedding_dim=32, weights_path: Path = GNN_WEIGHTS):
+def build_gnn_embedder(
+    hidden_channels=64,
+    embedding_dim=32,
+    weights_path: Path = GNN_WEIGHTS,
+    model_type="gcn",
+):
     num_node_features = 3
-    gnn = GNNModel(num_node_features, hidden_channels, embedding_dim)
+    gnn = GNNModel(num_node_features, hidden_channels, embedding_dim, model_type=model_type)
     if weights_path and weights_path.exists():
         state = torch.load(weights_path, map_location="cpu")
         try:
@@ -53,7 +59,7 @@ def rollout_rl_policy(env, model):
         'path': env.path
     }
 
-def evaluate_methods(rl_model_path=PPO_WEIGHTS, rl_timesteps=0):
+def evaluate_methods(rl_model_path=PPO_WEIGHTS, rl_timesteps=0, gnn_model="gcn", gnn_weights=GNN_WEIGHTS):
     env = NetworkEnvironment()
     traffic_gen = TrafficGenerator(env)
     traffic_gen.set_fixed_flows()
@@ -71,7 +77,7 @@ def evaluate_methods(rl_model_path=PPO_WEIGHTS, rl_timesteps=0):
 
     # RL with GNN embeddings
     source, target = (0,0), (3,3)
-    gnn_embedder = build_gnn_embedder()
+    gnn_embedder = build_gnn_embedder(weights_path=Path(gnn_weights), model_type=gnn_model)
     rl_env = NetworkRoutingEnv(env, source, target, gnn_embedder=gnn_embedder)
 
     rl_model = None
@@ -114,5 +120,20 @@ def evaluate_methods(rl_model_path=PPO_WEIGHTS, rl_timesteps=0):
     fig.savefig(chart_path)
     print(f"Saved evaluation plot to {chart_path}")
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate routing methods with optional GNN-enhanced RL.")
+    parser.add_argument("--rl-model", type=str, default=str(PPO_WEIGHTS), help="Path to saved PPO policy.")
+    parser.add_argument("--rl-timesteps", type=int, default=0, help="Train a fresh PPO policy if no saved model exists.")
+    parser.add_argument("--gnn-model", choices=SUPPORTED_GNN_MODELS, default="gcn", help="GNN encoder architecture.")
+    parser.add_argument("--gnn-weights", type=str, default=str(GNN_WEIGHTS), help="Path to pretrained GNN encoder weights.")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    evaluate_methods()
+    args = parse_args()
+    evaluate_methods(
+        rl_model_path=Path(args.rl_model),
+        rl_timesteps=args.rl_timesteps,
+        gnn_model=args.gnn_model,
+        gnn_weights=Path(args.gnn_weights),
+    )

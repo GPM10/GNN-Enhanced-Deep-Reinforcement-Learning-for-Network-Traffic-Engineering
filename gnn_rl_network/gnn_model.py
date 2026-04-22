@@ -1,19 +1,33 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GATConv, GCNConv, SAGEConv
 from torch_geometric.data import Data
 import networkx as nx
 import numpy as np
 from typing import Dict, Any, Tuple
 
+SUPPORTED_GNN_MODELS = ("gcn", "gat", "graphsage")
+
+
 class GNNModel(nn.Module):
-    def __init__(self, num_node_features, hidden_channels, num_classes):
+    def __init__(self, num_node_features, hidden_channels, num_classes, model_type="gcn", gat_heads=4):
         super().__init__()
-        self.conv1 = GCNConv(num_node_features, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, num_classes)
+        self.model_type = _normalize_model_type(model_type)
         self.embedding_dim = num_classes
+
+        if self.model_type == "gcn":
+            self.conv1 = GCNConv(num_node_features, hidden_channels)
+            self.conv2 = GCNConv(hidden_channels, hidden_channels)
+            self.conv3 = GCNConv(hidden_channels, num_classes)
+        elif self.model_type == "gat":
+            self.conv1 = GATConv(num_node_features, hidden_channels, heads=gat_heads, concat=False)
+            self.conv2 = GATConv(hidden_channels, hidden_channels, heads=gat_heads, concat=False)
+            self.conv3 = GATConv(hidden_channels, num_classes, heads=1, concat=False)
+        elif self.model_type == "graphsage":
+            self.conv1 = SAGEConv(num_node_features, hidden_channels)
+            self.conv2 = SAGEConv(hidden_channels, hidden_channels)
+            self.conv3 = SAGEConv(hidden_channels, num_classes)
 
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index)
@@ -22,6 +36,21 @@ class GNNModel(nn.Module):
         x = F.relu(x)
         x = self.conv3(x, edge_index)
         return x
+
+
+def _normalize_model_type(model_type: str) -> str:
+    normalized = model_type.lower().replace("_", "").replace("-", "")
+    aliases = {
+        "gcn": "gcn",
+        "gat": "gat",
+        "sage": "graphsage",
+        "graphsage": "graphsage",
+    }
+    if normalized not in aliases:
+        options = ", ".join(SUPPORTED_GNN_MODELS)
+        raise ValueError(f"Unsupported GNN model '{model_type}'. Choose one of: {options}.")
+    return aliases[normalized]
+
 
 def _default_feature_vector(G: nx.Graph, node: Any, idx: int, total_nodes: int,
                             coord_stats: Tuple[int, int, bool]) -> np.ndarray:
